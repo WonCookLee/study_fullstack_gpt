@@ -8,3 +8,6 @@ python -m venv ./env
 
 #패키지 설치
 pip install -r requirements.txt
+
+#OPENAI_API_KEY 설정
+ - ChatOpenAI() 호출시 자동으로 읽음
