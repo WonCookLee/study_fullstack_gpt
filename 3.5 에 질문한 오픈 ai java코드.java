@@ -19,6 +19,7 @@ public class OpenAiApi {
     public static String getCompletion(String prompt) {
         String url = "https://api.openai.com/v1/engines/davinci/completions";
         JSONObject json = new JSONObject()
+                // .put("model", "gpt-3.5-turbo")
                 .put("prompt", prompt)
                 .put("max_tokens", 100);
 
