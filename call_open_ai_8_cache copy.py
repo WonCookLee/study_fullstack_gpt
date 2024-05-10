@@ -10,6 +10,7 @@ from langchain.prompts import load_prompt
 from langchain.prompts.pipeline import PipelinePromptTemplate
 from langchain.cache import InMemoryCache, SQLiteCache
 from langchain.globals import set_llm_cache, set_debug
+from langchain.callbacks import get_openai_callback
 
 #set_llm_cache(InMemoryCache())
 set_llm_cache(SQLiteCache("cash.db"))
@@ -23,5 +24,4 @@ chat = ChatOpenAI(
     # ],
 )
 chat.predict("이탈리안 파스타 어떻게 만들어?")
-
 
