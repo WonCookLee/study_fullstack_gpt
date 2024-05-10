@@ -10,16 +10,6 @@ class CommaOutputParser(BaseOutputParser):
         return list(map(str.strip, items))
         
 
-p = CommaOutputParser()
-
-p.parse("Hello, how, are, you ")
-
-#temperature 란?
-#사용할 샘플링 온도는 0에서 2 사이입니다. 0.8과 같이 값이 높을수록 출력이 더 무작위로 만들어지고, 0.2와 같이 값이 낮을수록 더 집중적이고 결정적이게 됩니다.
-chat = ChatOpenAI(
-    temperature=0.1 
-    )
-
 #temperature 란?
 #사용할 샘플링 온도는 0에서 2 사이입니다. 0.8과 같이 값이 높을수록 출력이 더 무작위로 만들어지고, 0.2와 같이 값이 낮을수록 더 집중적이고 결정적이게 됩니다.
 chat = ChatOpenAI(
