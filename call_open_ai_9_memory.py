@@ -78,3 +78,28 @@ add_message("난 치즈라는 고양이를 키워 고양이에 대해 설명해�
 14년이라는 나이로 보면 이미 치즈라는 고양이는 상당히 잘 살고 계시는 것 같아요! 고양이의 건강과 행복을 유지하기 위해 꾸준한 동물 병원 방문과 건강한 식사, 적절한 운동과 함께 정서적으로도 케어를 해주시는 것이 중요합니다. 현재 치즈라는 고양이가 얼마나 더 살 수 있을지 정확히 알기는 어렵지만, 건강하고 행복한 일년이 많이 남았으면 좋겠네요!""")
 
 get_history()
+
+from langchain.memory import ConversationKGMemory
+from langchain.chat_models import ChatOpenAI
+
+llm = ChatOpenAI(temperature=0.1)
+#중요한거만 뽑음, 대화에서 entity 추출
+memory = ConversationKGMemory(
+    llm=llm,
+    return_messages=True,
+)
+
+
+def add_message(input, output):
+    memory.save_context({"input": input}, {"output": output})
+
+
+add_message("Hi I'm Nicolas, I live in South Korea", "Wow that is so cool!")
+
+memory.load_memory_variables({"input": "who is Nicolas"})
+add_message("Nicolas likes kimchi", "Wow that is so cool!")
+memory.load_memory_variables({"inputs": "what does nicolas like"})
+
+#{'history': [SystemMessage(content='On Nicolas: Nicolas lives in South Korea. Nicolas likes kimchi.')]}
+
+
