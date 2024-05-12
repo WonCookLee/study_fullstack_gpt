@@ -33,7 +33,7 @@ chain = RunnablePassthrough.assign(history=load_memory) | prompt | llm
 def invoke_chain(question):
     result = chain.invoke({"question": question})
     memory.save_context(
-        {"input": question},
+        {"system": question},
         {"output": result.content},
     )
     print(result)

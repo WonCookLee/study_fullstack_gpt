@@ -1,42 +1,65 @@
-from multiprocessing import context
-import time
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.embeddings import CacheBackedEmbeddings, OpenAIEmbeddings
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
 from langchain.storage import LocalFileStore
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
-import streamlit as st
-from tomlkit import document
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks.base import BaseCallbackHandler
+import streamlit as st
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 
 st.set_page_config(
     page_title="DocumentGPT",
     page_icon="📃",
 )
 
-class ChatCallbackHandler(BaseCallbackHandler):
-    message = ""
 
-    def on_llm_start(self, *args, **kwargs):
-        self.message_box = st.empty()
+@st.cache_resource
+def init_llm(chat_callback: bool):
+    if chat_callback == True:
 
-    def on_llm_end(self, *args, **kwargs):
-        save_message(self.message, "ai")
+        class ChatCallbackHandler(BaseCallbackHandler):
+            def __init__(self, *args, **kwargs):
+                self.tokens = ""
 
-    def on_llm_new_token(self, token, *args, **kwargs):
-        self.message += token
-        self.message_box.markdown(self.message)
-        
-llm = ChatOpenAI(
-    temperature=0.1,
-    streaming=True,
-    callbacks=[
-        ChatCallbackHandler(),
-    ],
-)
+            def on_llm_start(self, *args, **kwargs):
+                self.messagebox = st.empty()
+                self.tokens = ""
+
+            def on_llm_end(self, *args, **kwargs):
+                save_message(role="ai", message=self.tokens)
+
+            def on_llm_new_token(self, token, *args, **kwargs):
+                self.tokens += token
+                with self.messagebox:
+                    st.write(self.tokens)
+
+        callbacks = [ChatCallbackHandler()]
+    else:
+        callbacks = []
+
+    return ChatOpenAI(
+        temperature=0.1,
+        streaming=True,
+        callbacks=callbacks,
+    )
+
+
+llm = init_llm(chat_callback=True)
+llm_for_memory = init_llm(chat_callback=False)
+
+
+@st.cache_resource
+def init_memory(_llm):
+    return ConversationSummaryBufferMemory(
+        llm=_llm, max_token_limit=60, return_messages=True, memory_key="chat_history"
+    )
+
+
+memory = init_memory(llm_for_memory)
+
 
 @st.cache_data(show_spinner="Embedding file...")
 def embed_file(file):
@@ -59,6 +82,7 @@ def embed_file(file):
     retriever = vector_store.as_retriever()
     return retriever
 
+
 def save_message(message, role):
     st.session_state["messages"].append({"message": message, "role": role})
 
@@ -67,7 +91,7 @@ def send_message(message, role, save=True):
     with st.chat_message(role):
         st.markdown(message)
     if save:
-        st.session_state["messages"].append({"message": message, "role": role})
+        save_message(message, role)
 
 
 def paint_history():
@@ -83,15 +107,21 @@ def format_docs(docs):
     return "\n\n".join(document.page_content for document in docs)
 
 
+def load_memory(_):
+    return memory.load_memory_variables({})["chat_history"]
+
+
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
             "넌 사람을 돕는 AI야 물어보는거에 잘 대답하고 모르는건 말하지마 make it up:\n\n{context}",
         ),
+        MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{question}"),
     ]
 )
+
 
 st.title("DocumentGPT")
 
@@ -120,19 +150,21 @@ if file:
         send_message(message, "human")
         chain = (
             {
-                "context": retriever,
+                "context": retriever
+                | RunnableLambda(
+                    lambda docs: "\n\n".join(doc.page_content for doc in docs)
+                ),
                 "question": RunnablePassthrough(),
+                "chat_history": load_memory,
             }
             | prompt
             | llm
         )
-        # response = chain.invoke(message)
-        # send_message(response.content, "ai")
         with st.chat_message("ai"):
-            response = chain.invoke(message)
+            content = chain.invoke(message).content
+            memory.save_context({"input": message}, {"output": content})
+            st.write(memory)
+
 
 else:
     st.session_state["messages"] = []
-
-
-
