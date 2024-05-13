@@ -1,19 +1,16 @@
+import streamlit as st
 from langchain.document_loaders import UnstructuredFileLoader
-from langchain.embeddings import CacheBackedEmbeddings, OpenAIEmbeddings
-from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
-from langchain.storage import LocalFileStore
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings, CacheBackedEmbeddings
 from langchain.vectorstores.faiss import FAISS
+from langchain.storage import LocalFileStore
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks.base import BaseCallbackHandler
-import streamlit as st
 from langchain.memory import ConversationSummaryBufferMemory
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 
-st.set_page_config(
-    page_title="DocumentGPT",
-    page_icon="📃",
-)
+st.set_page_config(page_title="DocumentGPT", page_icon="📜")
 
 
 @st.cache_resource
@@ -47,7 +44,7 @@ def init_llm(chat_callback: bool):
     )
 
 
-llm = init_llm(chat_callback=True)
+llm_for_chat = init_llm(chat_callback=True)
 llm_for_memory = init_llm(chat_callback=False)
 
 
@@ -61,54 +58,48 @@ def init_memory(_llm):
 memory = init_memory(llm_for_memory)
 
 
-@st.cache_data(show_spinner="Embedding file...")
-def embed_file(file):
-    file_content = file.read()
+def save_message(role, message):
+    st.session_state["messages"].append({"role": role, "message": message})
+
+
+def show_message(role, message, save=True):
+    with st.chat_message(role):
+        st.write(message)
+    if save:
+        save_message(role, message)
+
+
+@st.cache_data(show_spinner="File is uploaded...")
+def handle_file(file):
+    # file 저장하기
+    upload_content = file.read()
     file_path = f"./.cache/files/{file.name}"
     with open(file_path, "wb") as f:
-        f.write(file_content)
-    cache_dir = LocalFileStore(f"./.cache/embeddings/{file.name}")
-    splitter = CharacterTextSplitter.from_tiktoken_encoder(
-        separator="\n",
-        chunk_size=600,
-        chunk_overlap=100,
-    )
+        f.write(upload_content)
+    # file load, split, embed하기
     loader = UnstructuredFileLoader(file_path)
-    docs = loader.load_and_split(text_splitter=splitter)
-    embeddings = OpenAIEmbeddings()
-    cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
-        embeddings, cache_dir)
-    vector_store = FAISS.from_documents(docs, cached_embeddings)
-    retriever = vector_store.as_retriever()
-    return retriever
+    splitter = CharacterTextSplitter.from_tiktoken_encoder(
+        separator="\n", chunk_size=600, chunk_overlap=100
+    )
+    embedder = CacheBackedEmbeddings.from_bytes_store(
+        underlying_embeddings=OpenAIEmbeddings(),
+        document_embedding_cache=LocalFileStore("./.cache/embeddings/"),
+    )
+
+    load_docs = loader.load()
+    split_docs = splitter.split_documents(load_docs)
+    embedding_in_vectorstore = FAISS.from_documents(split_docs, embedder)
+
+    return embedding_in_vectorstore.as_retriever()
 
 
-def save_message(message, role):
-    st.session_state["messages"].append({"message": message, "role": role})
-
-
-def send_message(message, role, save=True):
-    with st.chat_message(role):
-        st.markdown(message)
-    if save:
-        save_message(message, role)
-
-
-def paint_history():
-    for message in st.session_state["messages"]:
-        send_message(
-            message["message"],
-            message["role"],
-            save=False,
-        )
-
-
-def format_docs(docs):
-    return "\n\n".join(document.page_content for document in docs)
-
-
-def load_memory(_):
+def load_memory(input):
     return memory.load_memory_variables({})["chat_history"]
+
+
+def show_prompt(inputs):
+    print(inputs)
+    return inputs
 
 
 prompt = ChatPromptTemplate.from_messages(
@@ -123,7 +114,13 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "ai", "message": "I'm ready! Ask anything about your file."}
+    ]
+
 st.title("DocumentGPT")
+
 
 st.markdown(
     """
@@ -131,23 +128,23 @@ Welcome!
             
 Use this chatbot to ask questions to an AI about your files!
 
-Upload your files on the sidebar.
+Upload your file on the sidebar!
 """
 )
 
 with st.sidebar:
     file = st.file_uploader(
-        "Upload a .txt .pdf or .docx file",
-        type=["pdf", "txt", "docx"],
+        "Upload a .txt, .pdf or .docx files!", ["txt", "pdf", "docx"]
     )
 
 if file:
-    retriever = embed_file(file)
-    send_message("I'm ready! Ask away!", "ai", save=False)
-    paint_history()
-    message = st.chat_input("Ask anything about your file...")
+    retriever = handle_file(file)
+    for msg in st.session_state["messages"]:
+        show_message(role=msg["role"], message=msg["message"], save=False)
+    message = st.chat_input("Send your message")
     if message:
-        send_message(message, "human")
+        show_message(role="human", message=message)
+
         chain = (
             {
                 "context": retriever
@@ -157,14 +154,20 @@ if file:
                 "question": RunnablePassthrough(),
                 "chat_history": load_memory,
             }
+            # | RunnableLambda(show_prompt)
             | prompt
-            | llm
+            | llm_for_chat
         )
         with st.chat_message("ai"):
-            content = chain.invoke(message).content
-            memory.save_context({"input": message}, {"output": content})
+            response = chain.invoke(message).content
+            memory.save_context({"input": message}, {"output": response})
             st.write(memory)
-
-
 else:
-    st.session_state["messages"] = []
+    st.session_state["messages"] = [
+        {"role": "ai", "message": "I'm ready! Ask anything about your file."}
+    ]
+    memory.clear()
+    memory.save_context(
+        {"input": "Here is my file"},
+        {"output": "I'm ready! Ask anything about your file."},
+    )
