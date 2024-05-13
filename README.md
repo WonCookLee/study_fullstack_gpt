@@ -3,7 +3,7 @@
 - 가상환경 설치
   python -m venv ./env
 
-- 가상환경 실행
+- 가상환경 실행(쥬피터 노트북)
   env\Scripts\activate.bat
 
 - 패키지 설치

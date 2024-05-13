@@ -149,6 +149,7 @@ QuizGPT에 오신 것을 환영합니다.
     )
 else:
     response = generate_questions(docs, topic if topic else file.name)
+    print(response)
     with st.form("questions_form"):
         for idx, question in enumerate(response["questions"]):
             value = st.radio(
