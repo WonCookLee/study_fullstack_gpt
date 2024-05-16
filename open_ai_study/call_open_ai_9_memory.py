@@ -1,3 +1,6 @@
+from langchain.memory import ConversationKGMemory
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.memory import ConversationSummaryMemory
 from langchain.chat_models import ChatOpenAI
 from langchain.llms.openai import OpenAI
 from langchain.memory import ConversationBufferMemory
@@ -7,19 +10,21 @@ from langchain.memory import ConversationBufferWindowMemory
 # 대화 전체를 저장하는 메모리
 # 대화 길수록 비효율
 memory = ConversationBufferMemory(return_messages=True)
-memory.save_context({"input":"hi"}, {"output":"How are you"})
+memory.save_context({"input": "hi"}, {"output": "How are you"})
 memory.load_memory_variables({})
 
 
-#최근 대화를 저장하는 메모리
-#4개까지만 저장
+# 최근 대화를 저장하는 메모리
+# 4개까지만 저장
 memory = ConversationBufferWindowMemory(
     return_messages=True,
     k=4
 )
 
+
 def add_message(input, output):
-    memory.save_context({"input":input}, {"output":output})
+    memory.save_context({"input": input}, {"output": output})
+
 
 add_message("테스트인풋1", "테스트아웃풋1")
 add_message("테스트인풋2", "테스트아웃풋2")
@@ -31,9 +36,6 @@ add_message("테스트인풋6", "테스트아웃풋6")
 memory.load_memory_variables({})
 
 
-from langchain.memory import ConversationSummaryMemory
-from langchain.chat_models import ChatOpenAI
-
 llm = ChatOpenAI(
     temperature=0.1,
     streaming=True,
@@ -42,34 +44,38 @@ llm = ChatOpenAI(
     ],
 )
 
-#대화 내용 요약해서 저장하는 메모리
-#대화가 짧을수록 손해, 길수록 유리
+# 대화 내용 요약해서 저장하는 메모리
+# 대화가 짧을수록 손해, 길수록 유리
 memory = ConversationSummaryMemory(llm=llm)
 
+
 def add_message(input, output):
-    memory.save_context({"input":input}, {"output":output})
-    
+    memory.save_context({"input": input}, {"output": output})
+
+
 def get_history():
     return memory.load_memory_variables({})
-    
+
+
 add_message("난 이원국이고, 대한민국 서울에 살아", "와우! 멋져!")
 add_message("한국은 매우 아름다워", "나도 가보고 싶어")
 
 
-from langchain.memory import ConversationSummaryBufferMemory
-
-#특정 limit 넘으면 요약하기 시작
+# 특정 limit 넘으면 요약하기 시작
 memory = ConversationSummaryBufferMemory(
     llm=llm,
     max_token_limit=150,
     return_messages=True
-    )
+)
+
 
 def add_message(input, output):
-    memory.save_context({"input":input}, {"output":output})
-    
+    memory.save_context({"input": input}, {"output": output})
+
+
 def get_history():
     return memory.load_memory_variables({})
+
 
 add_message("난 이원국이고, 대한민국 서울에 살아", "와우! 멋져!")
 add_message("한국은 매우 아름다워", "나도 가보고 싶어")
@@ -79,11 +85,9 @@ add_message("난 치즈라는 고양이를 키워 고양이에 대해 설명해�
 
 get_history()
 
-from langchain.memory import ConversationKGMemory
-from langchain.chat_models import ChatOpenAI
 
 llm = ChatOpenAI(temperature=0.1)
-#중요한거만 뽑음, 대화에서 entity 추출
+# 중요한거만 뽑음, 대화에서 entity 추출
 memory = ConversationKGMemory(
     llm=llm,
     return_messages=True,
@@ -100,6 +104,4 @@ memory.load_memory_variables({"input": "who is Nicolas"})
 add_message("Nicolas likes kimchi", "Wow that is so cool!")
 memory.load_memory_variables({"inputs": "what does nicolas like"})
 
-#{'history': [SystemMessage(content='On Nicolas: Nicolas lives in South Korea. Nicolas likes kimchi.')]}
-
-
+# {'history': [SystemMessage(content='On Nicolas: Nicolas lives in South Korea. Nicolas likes kimchi.')]}

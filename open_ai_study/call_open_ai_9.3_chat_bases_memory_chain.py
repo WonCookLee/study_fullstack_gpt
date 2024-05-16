@@ -17,7 +17,7 @@ memory = ConversationSummaryBufferMemory(
     llm=llm,
     max_token_limit=120,
     return_messages=True
-    )
+)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "너는 사람에게 도움을 주는 AI야, 물어본 언어로 대답해"),
@@ -25,10 +25,13 @@ prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}"),
 ])
 
+
 def load_memory(_):
     return memory.load_memory_variables({})["history"]
 
+
 chain = RunnablePassthrough.assign(history=load_memory) | prompt | llm
+
 
 def invoke_chain(question):
     result = chain.invoke({"question": question})
@@ -37,6 +40,7 @@ def invoke_chain(question):
         {"output": result.content},
     )
     print(result)
+
 
 invoke_chain("내 이름은 원국")
 invoke_chain("난 강남에 살아")
